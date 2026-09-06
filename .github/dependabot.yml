@@ -1,0 +1,108 @@
+# Dependabot Configuration for Hikvision Recovery
+# Automatically updates dependencies and creates PRs
+
+version: 2
+updates:
+  # Python dependencies (pip)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "[deps]"
+      prefix-development: "[deps][dev]"
+      include: "scope"
+    reviewers:
+      - "hikvision-recovery-team"
+    assignees:
+      - "hikvision-recovery-maintainer"
+    open-pull-requests-limit: 10
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    ignore:
+      # Ignore major version updates for critical dependencies
+      - dependency-name: "pydantic"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "requests"
+        update-types: ["version-update:semver-major"]
+    # Auto-merge for patch/minor updates if tests pass
+    auto-merge:
+      - match:
+          update_type: "version-update:semver-patch"
+      - match:
+          update_type: "version-update:semver-minor"
+    # Group related dependencies
+    groups:
+      dev-dependencies:
+        patterns:
+          - "pytest*"
+          - "ruff"
+          - "black"
+          - "mypy"
+          - "bandit"
+          - "safety"
+        update-types:
+          - "version-update:semver-patch"
+          - "version-update:semver-minor"
+      core-dependencies:
+        patterns:
+          - "requests*"
+          - "pydantic*"
+          - "click"
+          - "rich"
+          - "tqdm"
+          - "tenacity"
+          - "pyyaml"
+        update-types:
+          - "version-update:semver-patch"
+          - "version-update:semver-minor"
+
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "[deps]"
+      include: "scope"
+    reviewers:
+      - "hikvision-recovery-team"
+    open-pull-requests-limit: 5
+
+  # Docker dependencies (if Dockerfile exists)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "[deps]"
+      include: "scope"
+    reviewers:
+      - "hikvision-recovery-team"
+    open-pull-requests-limit: 3
+
+# =============================================================================
+# Security advisories
+# =============================================================================
+# Dependabot will automatically create PRs for security vulnerabilities
+# when they are detected in the GitHub Advisory Database
+# This is enabled by default for all ecosystems

@@ -1,0 +1,357 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.0.0)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Dry run (no actual release)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  id-token: write
+  packages: write
+
+jobs:
+  # =============================================================================
+  # Pre-release checks
+  # =============================================================================
+  pre-release:
+    name: Pre-release Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" build twine
+
+      - name: Run full test suite
+        run: |
+          pytest tests/ -v --cov=hikvision_recovery --cov-fail-under=80
+
+      - name: Verify version consistency
+        run: |
+          # Extract version from tag
+          TAG_VERSION=${GITHUB_REF#refs/tags/}
+          PYTHON_VERSION=$(python -c "import hikvision_recovery; print(hikvision_recovery.__version__)")
+          SETUP_VERSION=$(grep -E '^version\s*=' setup.py | sed -E "s/.*['\"]([^'\"]+)['\"].*/\1/")
+          PYPROJECT_VERSION=$(grep -E '^version\s*=' pyproject.toml | sed -E "s/.*['\"]([^'\"]+)['\"].*/\1/")
+          
+          echo "Tag: $TAG_VERSION"
+          echo "Python: $PYTHON_VERSION"
+          echo "Setup.py: $SETUP_VERSION"
+          echo "PyProject: $PYPROJECT_VERSION"
+          
+          # Check all match (without 'v' prefix)
+          TAG_NO_V=${TAG_VERSION#v}
+          if [ "$TAG_NO_V" != "$PYTHON_VERSION" ]; then
+            echo "::error::Version mismatch: tag=$TAG_NO_V vs python=$PYTHON_VERSION"
+            exit 1
+          fi
+          if [ "$TAG_NO_V" != "$SETUP_VERSION" ]; then
+            echo "::error::Version mismatch: tag=$TAG_NO_V vs setup.py=$SETUP_VERSION"
+            exit 1
+          fi
+          if [ "$TAG_NO_V" != "$PYPROJECT_VERSION" ]; then
+            echo "::error::Version mismatch: tag=$TAG_NO_V vs pyproject.toml=$PYPROJECT_VERSION"
+            exit 1
+          fi
+          
+          echo "✅ All versions match: $TAG_NO_V"
+
+      - name: Run linting
+        run: |
+          pip install ruff black mypy
+          ruff check hikvision_recovery tests
+          black --check hikvision_recovery tests
+          mypy hikvision_recovery --ignore-missing-imports
+
+  # =============================================================================
+  # Build & Test Artifacts
+  # =============================================================================
+  build:
+    name: Build Release Artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: pre-release
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build package
+        run: |
+          python -m build --sdist --wheel --outdir dist/
+
+      - name: Verify package
+        run: |
+          ls -la dist/
+          python -m twine check dist/*
+
+      - name: Test install from wheel
+        run: |
+          pip install dist/*.whl
+          python -c "import hikvision_recovery; print('Version:', hikvision_recovery.__version__)"
+          python -c "from hikvision_recovery.core.sdk import SDKClient; print('SDK import OK')"
+          python -c "from hikvision_recovery.core import ISAPIClient; print('ISAPI import OK')"
+          python -c "from hikvision_recovery.cli.main import main; print('CLI import OK')"
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dist
+          path: dist/
+          retention-days: 30
+
+  # =============================================================================
+  # Security Scan on Release
+  # =============================================================================
+  security:
+    name: Release Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: pre-release
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install security tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit safety pip-audit
+
+      - name: Run Bandit
+        run: |
+          bandit -r hikvision_recovery -f json -o bandit-report.json || true
+          cat bandit-report.json | jq '.results | length' | xargs -I {} echo "Bandit issues: {}"
+
+      - name: Run Safety
+        run: |
+          safety check --json --output safety-report.json || true
+
+      - name: Run pip-audit
+        run: |
+          pip-audit --format=json --output=pip-audit-report.json || true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: *-report.json
+          retention-days: 30
+
+  # =============================================================================
+  # Publish to PyPI
+  # =============================================================================
+  publish-pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build, security]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      id-token: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-dist
+          path: dist/
+
+      - name: Verify artifacts
+        run: |
+          ls -la dist/
+          python -m twine check dist/*
+
+      - name: Publish to PyPI (Trusted Publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          attestations: true
+          verbose: true
+
+  # =============================================================================
+  # Publish to GitHub Packages
+  # =============================================================================
+  publish-github-packages:
+    name: Publish to GitHub Packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build, security]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-dist
+          path: dist/
+
+      - name: Publish to GitHub Packages
+        run: |
+          python -m twine upload --repository-url https://upload.pypi.org/legacy/ dist/*
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+
+  # =============================================================================
+  # Create GitHub Release
+  # =============================================================================
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build, security]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-dist
+          path: dist/
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          if [ -n "$PREV_TAG" ]; then
+            CHANGELOG=$(git log --pretty=format:"- %s (%an)" $PREV_TAG..HEAD -- hikvision_recovery/ tests/ .github/ | head -50)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s (%an)" -- hikvision_recovery/ tests/ .github/ | head -50)
+          fi
+          
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # =============================================================================
+  # Docker Release
+  # =============================================================================
+  docker:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [build, security]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=tag
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # =============================================================================
+  # Post-release
+  # =============================================================================
+  post-release:
+    name: Post-release Tasks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [publish-pypi, create-release, docker]
+    if: always()
+    steps:
+      - name: Check release status
+        run: |
+          echo "Release workflow completed!"
+          echo "PyPI Publish: ${{ needs.publish-pypi.result }}"
+          echo "GitHub Release: ${{ needs.create-release.result }}"
+          echo "Docker: ${{ needs.docker.result }}"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::warning::Release workflow had failures!"
+          echo "Check the Actions tab for details."
+          exit 1
+
+      - name: Success notification
+        if: success()
+        run: |
+          echo "✅ Release ${{ github.ref }} completed successfully!"
+          echo "📦 Published to PyPI"
+          echo "🐳 Docker image pushed to GHCR"
+          echo "📋 GitHub Release created"

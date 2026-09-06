@@ -1,0 +1,34 @@
+# CODEOWNERS for Hikvision Recovery
+# These users/teams will be automatically requested for review on PRs
+
+# Global owners
+* @hikvision-recovery-maintainer
+
+# Core SDK
+/hikvision_recovery/core/sdk/ @hikvision-recovery-core-team
+
+# ISAPI Client
+/hikvision_recovery/core/isapi_client.py @hikvision-recovery-core-team
+/hikvision_recovery/core/models.py @hikvision-recovery-core-team
+
+# CLI
+/hikvision_recovery/cli/ @hikvision-recovery-cli-team
+
+# Tests
+/tests/ @hikvision-recovery-qa-team
+
+# CI/CD
+/.github/workflows/ @hikvision-recovery-devops-team
+
+# Documentation
+/README.md @hikvision-recovery-docs-team
+/docs/ @hikvision-recovery-docs-team
+
+# Configuration
+/pyproject.toml @hikvision-recovery-maintainer
+/setup.py @hikvision-recovery-maintainer
+/requirements.txt @hikvision-recovery-maintainer
+
+# Security
+/.github/dependabot.yml @hikvision-recovery-security-team
+/.github/workflows/security.yml @hikvision-recovery-security-team

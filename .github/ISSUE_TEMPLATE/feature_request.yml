@@ -1,0 +1,88 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for Hikvision Recovery
+title: "[FEATURE]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! Please describe your idea in detail.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve? What's the use case?
+      placeholder: Describe the problem you're trying to solve...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this feature to work?
+      placeholder: Describe your ideal solution...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you considered any alternative solutions or workarounds?
+      placeholder: Any alternative solutions or workarounds you've considered...
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component would this feature affect?
+      options:
+        - ISAPI Client (core/isapi_client.py)
+        - HCNetSDK Wrapper (core/sdk/)
+        - CLI (cli/)
+        - Models/Types (core/models.py)
+        - Tests
+        - Documentation
+        - CI/CD
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: api
+    attributes:
+      label: API Design (if applicable)
+      description: If this involves API changes, describe the proposed interface
+      placeholder: |
+        ```python
+        # Example of proposed API
+        client.new_feature(param1, param2)
+        ```
+      render: python
+
+  - type: textarea
+    id: usecase
+    attributes:
+      label: Use Cases
+      description: Specific scenarios where this feature would be useful
+      placeholder: |
+        - Use case 1: ...
+        - Use case 2: ...
+
+  - type: checkboxes
+    id: breaking
+    attributes:
+      label: Breaking Changes
+      options:
+        - label: This change introduces breaking changes
+        - label: This change requires migration guide
+        - label: This change requires documentation update
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other context, screenshots, or references
+      placeholder: Links to related issues, PRs, or external resources...

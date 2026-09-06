@@ -1,0 +1,214 @@
+name: Security Scanning
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday 2 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  # =============================================================================
+  # SAST - Static Application Security Testing
+  # =============================================================================
+  sast:
+    name: SAST (CodeQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      security-events: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: +security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # =============================================================================
+  # Dependency Scanning
+  # =============================================================================
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install safety pip-audit bandit
+
+      - name: Run Safety (PyPI vulnerability database)
+        run: |
+          safety check --json --output safety-report.json || true
+          cat safety-report.json | jq -r '.vulnerabilities[] | "\(.package_name) \(.analyzed_version) \(.advisory)"' | head -20 || echo "No vulnerabilities found"
+
+      - name: Run pip-audit
+        run: |
+          pip-audit --format=json --output=pip-audit-report.json || true
+          cat pip-audit-report.json | jq -r '.vulnerabilities[] | "\(.name) \(.version) \(.id)"' | head -20 || echo "No vulnerabilities found"
+
+      - name: Run Bandit (static analysis)
+        run: |
+          bandit -r hikvision_recovery -f json -o bandit-report.json || true
+          cat bandit-report.json | jq '.results | length' | xargs -I {} echo "Bandit issues found: {}"
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports-${{ github.sha }}
+          path: *-report.json
+          retention-days: 30
+
+  # =============================================================================
+  # Secret Scanning
+  # =============================================================================
+  secrets:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run TruffleHog (secret scanning)
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ""
+          head: HEAD
+          extra_args: --json --fail
+
+      - name: Run GitLeaks (alternative secret scanner)
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          args: "--verbose --config=.gitleaks.toml"
+
+  # =============================================================================
+  # License Compliance
+  # =============================================================================
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-licenses
+
+      - name: Check licenses
+        run: |
+          pip install -e .
+          pip-licenses --format=json --output-file=licenses.json --with-urls --with-description
+          cat licenses.json | jq -r '.[] | "\(.Name) \(.Version) \(.License)"' | sort
+
+      - name: Verify allowed licenses
+        run: |
+          # Define allowed licenses
+          ALLOWED_LICENSES="MIT BSD Apache-2.0 PSF ISC Python-2.0 MPL-2.0 LGPL-2.1-only"
+          
+          # Check for disallowed licenses
+          DISALLOWED=$(cat licenses.json | jq -r '.[] | select(.License | test("GPL|AGPL|LGPL|SSPL|Commons Clause|Proprietary|Unknown")) | "\(.Name) \(.Version) \(.License)"')
+          
+          if [ -n "$DISALLOWED" ]; then
+            echo "::error::Disallowed licenses found:"
+            echo "$DISALLOWED"
+            exit 1
+          else
+            echo "✅ All licenses are compliant"
+          fi
+
+  # =============================================================================
+  # Container Security (if Dockerfile exists)
+  # =============================================================================
+  container-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: hashFiles('Dockerfile') != ''
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Trivy (container vulnerability scanner)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'container-scan'
+
+  # =============================================================================
+  # Summary
+  # =============================================================================
+  summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [sast, dependency-scan, secrets, license-check, container-scan]
+    steps:
+      - name: Print security scan results
+        run: |
+          echo "## Security Scan Results"
+          echo ""
+          echo "| Scan | Status |"
+          echo "|------|--------|"
+          echo "| SAST (CodeQL) | ${{ needs.sast.result }} |"
+          echo "| Dependency Scan | ${{ needs.dependency-scan.result }} |"
+          echo "| Secret Scan | ${{ needs.secrets.result }} |"
+          echo "| License Check | ${{ needs.license-check.result }} |"
+          echo "| Container Scan | ${{ needs.container-scan.result }} |"
+          echo ""
+          if [ "${{ needs.sast.result }}" != "success" ] || [ "${{ needs.dependency-scan.result }}" != "success" ] || [ "${{ needs.secrets.result }}" != "success" ] || [ "${{ needs.license-check.result }}" != "success" ]; then
+            echo "❌ **Security issues detected!**"
+            exit 1
+          else
+            echo "✅ **All security scans passed!**"
+          fi

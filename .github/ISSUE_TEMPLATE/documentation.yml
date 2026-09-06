@@ -1,0 +1,60 @@
+name: Documentation Issue
+description: Report documentation issues or request improvements
+title: "[DOCS]: "
+labels: ["documentation", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a documentation issue or requesting improvements!
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type of Documentation Issue
+      options:
+        - Typo/Grammar
+        - Missing Information
+        - Unclear/Confusing
+        - Outdated/Incorrect
+        - Missing Example
+        - New Documentation Request
+      default: Typo/Grammar
+    validations:
+      required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: Documentation Location
+      description: Where is the issue? (file path, URL, or section name)
+      placeholder: "e.g., README.md, docs/api.md, CLI help text"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What is wrong or missing?
+      placeholder: Describe the issue...
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested Improvement
+      description: How should it be fixed or improved?
+      placeholder: Suggest the exact wording, example, or structure...
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: This affects CLI help text
+        - label: This affects README.md
+        - label: This affects docstrings in code
+        - label: This affects API documentation
+        - label: This affects CLI command help

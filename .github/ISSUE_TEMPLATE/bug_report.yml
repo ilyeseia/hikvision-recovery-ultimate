@@ -1,0 +1,104 @@
+name: Bug Report
+description: Report a bug in Hikvision Recovery
+title: "[BUG]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill out the form below with as much detail as possible.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: What version of Hikvision Recovery are you using?
+      placeholder: "e.g., 0.2.0"
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python Version
+      description: What Python version are you using?
+      placeholder: "e.g., 3.10.12"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: What platform are you running on?
+      options:
+        - Linux (x86_64)
+        - Linux (ARM64/aarch64)
+        - Windows
+        - macOS
+        - Docker
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Hikvision Device
+      description: What Hikvision device model/firmware are you using?
+      placeholder: "e.g., DS-7608NI-K2, Firmware V4.0.0"
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: Clear and concise description of the bug
+      placeholder: Describe what happened...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Step-by-step instructions to reproduce the bug
+      placeholder: |
+        1. Go to '...'
+        2. Run command '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: What should have happened...
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened? (Include error messages, logs, stack traces)
+      placeholder: Paste error messages, logs, stack traces here...
+
+  - type: textarea
+    id: code
+    attributes:
+      label: Code Sample
+      description: If applicable, provide a minimal code sample that reproduces the issue
+      placeholder: |
+        ```python
+        from hikvision_recovery import SDKClient
+        client = SDKClient()
+        client.login(...)
+        ```
+      render: python
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Additional Logs/Context
+      description: Any additional information, configuration, or screenshots
+      placeholder: Additional context...
