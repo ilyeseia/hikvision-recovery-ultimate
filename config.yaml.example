@@ -1,0 +1,18 @@
+# Hikvision Recovery - Configuration
+
+## Device Configuration
+host: "192.168.1.100"          # Device IP or hostname
+username: "admin"               # Username (usually admin)
+password: "***"                 # Password (keep secure!)
+port: 80                        # HTTP port (default 80)
+use_https: false                # Use HTTPS (requires valid SSL cert)
+verify_ssl: false               # Verify SSL certificates
+
+## Connection Settings
+timeout: 30                     # Request timeout in seconds
+max_retries: 3                  # Max retry attempts for failed requests
+backoff_factor: 0.5            # Exponential backoff factor
+digest_auth: true              # Use Digest authentication (recommended)
+
+## Advanced
+user_agent: "HikvisionRecovery/0.1.0"

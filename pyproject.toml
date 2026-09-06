@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hikvision-recovery"
+version = "0.1.0"
+description = "Professional Hikvideo ISAPI client for recording management and recovery"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Hikvision Recovery Team", email = "recovery@hikvision.local"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Security Professionals",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Archiving :: Backup",
+    "Topic :: System :: Recovery Tools",
+]
+dependencies = [
+    "requests>=2.31.0",
+    "requests-toolbelt>=1.0.0",
+    "urllib3>=2.0.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "python-dateutil>=2.8.2",
+    "tqdm>=4.66.0",
+    "click>=8.1.0",
+    "rich>=13.7.0",
+    "tenacity>=8.2.0",
+    "pyyaml>=6.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+    "pre-commit>=3.5.0",
+]
+sdk = [
+    "ctypesgen>=1.1.1",
+]
+
+[project.entry-points]
+console_scripts = [
+    "hikvision = hikvision_recovery.cli.main:main",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hikvision_recovery*"]
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "I", "W", "UP", "B", "C4", "ANN", "T20", "PT", "PTH", "ERA", "RET", "SIM", "TC", "PIE", "ARG", "PTH", "FLY", "NPY", "PERF", "LOG", "TRY", "ASYNC", "Q", "TID", "RSE", "RUF", "DTZ", "EXE", "ISC", "ICN", "PL", "TRY", "NPY", "TCH", "INT", "PTH", "FA", "FURB", "INP", "TID", "RSE", "RUF", "DTZ", "EXE", "ISC", "ICN", "PL", "TRY", "NPY", "TCH", "INT", "PTH", "FA", "FURB", "INP"]
+ignore = ["E501", "ANN001", "ANN002", "ANN003", "ARG001", "ARG002"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+strict_optional = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
